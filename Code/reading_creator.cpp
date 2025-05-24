@@ -37,21 +37,25 @@ int main() {
             ocitanje.close();
             int br_linija_kroz4 = br_linija/4;
            
-            int random_number = rand() % (br_linija_kroz4-1);
-            int index = random_number * 4 + 2;
+            int nr_readings = 1 + rand() % 10;
+            
+            for (int i = 0; i < nr_readings; i++) {
+                ocitanje.open(entry.path());
+                int random_number = rand() % (br_linija_kroz4-1);
+                int index = random_number * 4 + 2;
 
-            ocitanje.open(entry.path());
-
-            string linija;
-            int trenutna = 1;
-            while (getline(ocitanje, linija)) {
-                if (trenutna == index) {
-                    break;
-                } else {
-                    trenutna++;
+                string linija;
+                int trenutna = 1;
+                while (getline(ocitanje, linija)) {
+                    if (trenutna == index) {
+                        break;
+                    } else {
+                        trenutna++;
+                    }
                 }
+                izlaz << linija << endl;
+                ocitanje.close();
             }
-            izlaz << linija << endl;
         }
     } catch (const fs::filesystem_error& e) {
         cout << "Greška: " << e.what() << endl;
