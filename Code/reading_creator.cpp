@@ -35,6 +35,9 @@ int main() {
                 ++br_linija;
             }
             ocitanje.close();
+            if (br_linija < 4) {
+                continue;
+            }
             int br_linija_kroz4 = br_linija/4;
            
             int nr_readings = 1 + rand() % 10;
@@ -47,12 +50,14 @@ int main() {
                 string linija;
                 int trenutna = 1;
                 while (getline(ocitanje, linija)) {
-                    if (trenutna == index) {
+                    if (trenutna == index - 1) {
                         break;
                     } else {
                         trenutna++;
                     }
                 }
+                izlaz << linija << endl;
+                getline(ocitanje, linija);
                 izlaz << linija << endl;
                 ocitanje.close();
             }
