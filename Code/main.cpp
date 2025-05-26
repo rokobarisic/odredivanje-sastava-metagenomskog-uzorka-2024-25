@@ -3,6 +3,7 @@
 #include <string>
 #include <unordered_map>
 #include "bioparser/fasta_parser.hpp"
+#include <math.h>
 
 using namespace std;
 namespace fs = std::filesystem;
@@ -85,6 +86,18 @@ string decode(uint16_t code)
     return kmer;
 }
 
+double euclid(const unordered_map<uint16_t, double> &dict)
+{
+    double sum = 0.0;
+
+    for (const auto &pair : dict) {
+        double freq = pair.second;
+        sum += freq * freq;
+    }
+
+    return sqrt(sum);
+}
+
 int main()
 {
     string path = "../Data/reading.fasta";
@@ -95,10 +108,8 @@ int main()
     // Parsiraj sve sekvence iz datoteke
     auto sekvence = parser->Parse(-1); // -1 znači: učitaj sve
 
-    auto &s = sekvence[0];
-    s->Print();
-
-
+    // auto &s = sekvence[0];
+    // s->Print();
 
     // Testiranje enkodiranja i dekodiranja
     // string kmer = "ACGTG";
@@ -108,19 +119,36 @@ int main()
     // string decoded = decode(encoded);
     // cout << "Dekodirani kmer: " << decoded << endl;
 
-    string sekv = s->data;
+    for (const auto &s : sekvence)
+    {
+        string sekv = s->data;
 
-    unordered_map<uint16_t, int> dict;
+        unordered_map<uint16_t, int> dict; // dict with kmer as key and its count in sequence as value
 
-    for (int i = 0; i <= sekv.size() - 5; ++i) {
-        string kmer = sekv.substr(i, 5);
-        uint16_t encoded = encode(kmer);
-        dict[encoded]++;
-        //cout << "Kmer: " << kmer << endl;
-    }
+        for (int i = 0; i <= sekv.size() - 5; ++i)
+        {
+            string kmer = sekv.substr(i, 5);
+            uint16_t encoded = encode(kmer);
+            dict[encoded]++;
+            // cout << "Kmer: " << kmer << endl;
+        }
 
-    for (const auto &pair : dict) {
-        cout << "Kmer: " << decode(pair.first) << ", Count: " << pair.second << endl;
+        int total_kmers = 0;
+        for (const auto &pair : dict)
+        {
+            total_kmers += pair.second;
+        }
+
+        unordered_map<uint16_t, double> freq_dict; // dict with kmer as key and its relative count in sequence as value
+        for (const auto &pair : dict)
+        {
+            double freq = static_cast<double>(pair.second) / total_kmers;
+            freq_dict[pair.first] = freq;
+            cout << "Kmer: " << decode(pair.first) << ", Relative count: " << freq << endl;
+        }
+
+        cout << "Euklidska norma vektora: " << euclid(freq_dict) << endl;
+        cout << endl;
     }
 
     return 0;
