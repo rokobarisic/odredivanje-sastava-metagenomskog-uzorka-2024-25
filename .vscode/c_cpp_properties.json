@@ -4,7 +4,7 @@
             "name": "Win32",
             "includePath": [
                 "${workspaceFolder}/**",
-                "${workspaceFolder}/bioparser/include"
+                "${workspaceFolder}/external/bioparser/include"
             ],
             "defines": [
                 "_DEBUG",
