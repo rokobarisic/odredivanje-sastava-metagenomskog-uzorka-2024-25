@@ -33,7 +33,6 @@ int main()
 
     try
     {
-
         ofstream izlaz(path_reading);
         for (const auto &entry : fs::directory_iterator(path))
         {

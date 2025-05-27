@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include <filesystem>
 #include <string>
 #include <unordered_map>
@@ -53,7 +54,7 @@ uint16_t encode(const std::string &kmer)
             code |= 0b11;
             break;
         default:
-            throw invalid_argument("Nevažeći znak u sekvenci");
+            throw invalid_argument("Nevažeći znak u sekvenci: " + string(1, c));
         }
     }
     return code;
@@ -90,7 +91,8 @@ double euclid(const unordered_map<uint16_t, double> &dict)
 {
     double sum = 0.0;
 
-    for (const auto &pair : dict) {
+    for (const auto &pair : dict)
+    {
         double freq = pair.second;
         sum += freq * freq;
     }
@@ -98,56 +100,130 @@ double euclid(const unordered_map<uint16_t, double> &dict)
     return sqrt(sum);
 }
 
+double scalar_product(const unordered_map<uint16_t, double> &dict1, const unordered_map<uint16_t, double> &dict2)
+{
+    double sum = 0.0;
+
+    for (const auto &pair : dict1)
+    {
+        auto it = dict2.find(pair.first);
+        if (it != dict2.end())
+        {
+            sum += pair.second * it->second;
+        }
+    }
+
+    return sum;
+}
+
+unordered_map<uint16_t, double> get_freq_dict(const string &sekv)
+{
+    unordered_map<uint16_t, int> dict; // dict with kmer as key and its count in sequence as value
+
+    for (int i = 0; i <= sekv.size() - 5; ++i)
+    {
+        string kmer = sekv.substr(i, 5);
+        if (kmer.find('N') != string::npos) continue;
+        if (kmer.find('R') != string::npos) continue;
+        if (kmer.find('Y') != string::npos) continue;
+        if (kmer.find('K') != string::npos) continue;
+        if (kmer.find('M') != string::npos) continue;
+        if (kmer.find('S') != string::npos) continue;
+        if (kmer.find('W') != string::npos) continue;
+        if (kmer.find('B') != string::npos) continue;
+        if (kmer.find('D') != string::npos) continue;
+        if (kmer.find('H') != string::npos) continue;
+        if (kmer.find('V') != string::npos) continue;
+        if (kmer.find('X') != string::npos) continue;
+        if (kmer.find('-') != string::npos) continue;
+        uint16_t encoded = encode(kmer);
+        dict[encoded]++;
+    }
+
+    int total_kmers = 0;
+    for (const auto &pair : dict)
+    {
+        total_kmers += pair.second;
+    }
+
+    unordered_map<uint16_t, double> freq_dict; // dict with kmer as key and its relative count in sequence as value
+    for (const auto &pair : dict)
+    {
+        double freq = static_cast<double>(pair.second) / total_kmers;
+        freq_dict[pair.first] = freq;
+    }
+
+    return freq_dict;
+}
+
 int main()
 {
-    string path = "../Data/reading.fasta";
+    unordered_map<string, unordered_map<uint16_t, double>> reference_freq_dicts;
+
+    // parsiramo referentne datoteke
+    string path = "../Data/References";
+
+    try
+    {
+        for (const auto &entry : fs::directory_iterator(path))
+        {
+            if (entry.path().filename() == ".gitkeep")
+            {
+                continue;
+            }
+            auto parser = bioparser::Parser<Sequence>::Create<bioparser::FastaParser>(entry.path().string());
+            //cout << "Parsiram referentnu datoteku: " << entry.path().filename() << endl;
+            auto sekvence = parser->Parse(-1);
+
+            auto &s = sekvence[0];
+            string sekv = s->data;
+            //cout << "ID: " << s->id << endl;
+            //cout << "Vektor pojavljivanja kmera: " << endl;
+            unordered_map<uint16_t, double> freq_dict = get_freq_dict(sekv);
+            reference_freq_dicts[entry.path().filename().string()] = freq_dict;
+        }
+
+        // for (const auto &entry : reference_freq_dicts)
+        // {
+        //     cout << "Referentna datoteka: " << entry.first << endl;
+        //     cout << "Euklidska norma vektora: " << euclid(entry.second) << endl;
+        // }
+    }
+    catch (const fs::filesystem_error &e)
+    {
+        cout << "Greška: " << e.what() << endl;
+    }
+
+    string reading_path = "../Data/reading.fasta";
 
     // Kreiraj parser koji čita FASTA i sprema u objekte tipa Sequence
-    auto parser = bioparser::Parser<Sequence>::Create<bioparser::FastaParser>(path);
+    auto parser = bioparser::Parser<Sequence>::Create<bioparser::FastaParser>(reading_path);
 
     // Parsiraj sve sekvence iz datoteke
     auto sekvence = parser->Parse(-1); // -1 znači: učitaj sve
 
-    // auto &s = sekvence[0];
-    // s->Print();
-
-    // Testiranje enkodiranja i dekodiranja
-    // string kmer = "ACGTG";
-    // cout << "Originalni kmer: " << kmer << endl;
-    // uint16_t encoded = encode(kmer);
-    // cout << "Enkodirani kmer: " << encoded << endl;
-    // string decoded = decode(encoded);
-    // cout << "Dekodirani kmer: " << decoded << endl;
-
     for (const auto &s : sekvence)
     {
+        cout << "ID: " << s->id << endl;
         string sekv = s->data;
 
-        unordered_map<uint16_t, int> dict; // dict with kmer as key and its count in sequence as value
+        unordered_map<uint16_t, double> freq_dict = get_freq_dict(sekv);
 
-        for (int i = 0; i <= sekv.size() - 5; ++i)
-        {
-            string kmer = sekv.substr(i, 5);
-            uint16_t encoded = encode(kmer);
-            dict[encoded]++;
-            // cout << "Kmer: " << kmer << endl;
+        // cout << "Euklidska norma vektora: " << euclid(freq_dict) << endl;
+        //cout << endl;
+
+        for (const auto &entry : reference_freq_dicts) {
+            const string &ref_name = entry.first;
+            const unordered_map<uint16_t, double> &ref_freq_dict = entry.second;
+
+            double reading_euclid = euclid(freq_dict);
+            double reference_euclid = euclid(ref_freq_dict);
+            double scalar_prod = scalar_product(freq_dict, ref_freq_dict);
+            
+
+            double similarity = scalar_prod / (reading_euclid * reference_euclid);
+            cout << "Slicnost sa referentnom datotekom " << ref_name << ": " << similarity << endl;
         }
-
-        int total_kmers = 0;
-        for (const auto &pair : dict)
-        {
-            total_kmers += pair.second;
-        }
-
-        unordered_map<uint16_t, double> freq_dict; // dict with kmer as key and its relative count in sequence as value
-        for (const auto &pair : dict)
-        {
-            double freq = static_cast<double>(pair.second) / total_kmers;
-            freq_dict[pair.first] = freq;
-            cout << "Kmer: " << decode(pair.first) << ", Relative count: " << freq << endl;
-        }
-
-        cout << "Euklidska norma vektora: " << euclid(freq_dict) << endl;
         cout << endl;
     }
 
