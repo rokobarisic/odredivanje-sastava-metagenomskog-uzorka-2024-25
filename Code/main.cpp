@@ -159,6 +159,7 @@ unordered_map<uint16_t, double> get_freq_dict(const string &sekv)
 int main()
 {
     unordered_map<string, unordered_map<uint16_t, double>> reference_freq_dicts;
+    unordered_map<string, int> readings_per_reference;
 
     // parsiramo referentne datoteke
     string path = "../Data/References";
@@ -171,6 +172,7 @@ int main()
             {
                 continue;
             }
+            readings_per_reference[entry.path().filename().string()] = 0;
             auto parser = bioparser::Parser<Sequence>::Create<bioparser::FastaParser>(entry.path().string());
             //cout << "Parsiram referentnu datoteku: " << entry.path().filename() << endl;
             auto sekvence = parser->Parse(-1);
@@ -204,13 +206,16 @@ int main()
 
     for (const auto &s : sekvence)
     {
-        cout << "ID: " << s->id << endl;
+        //cout << "ID: " << s->id << endl;
         string sekv = s->data;
 
         unordered_map<uint16_t, double> freq_dict = get_freq_dict(sekv);
 
         // cout << "Euklidska norma vektora: " << euclid(freq_dict) << endl;
         //cout << endl;
+
+        double max_similarity = 0.0;
+        string most_similar_ref;
 
         for (const auto &entry : reference_freq_dicts) {
             const string &ref_name = entry.first;
@@ -219,12 +224,21 @@ int main()
             double reading_euclid = euclid(freq_dict);
             double reference_euclid = euclid(ref_freq_dict);
             double scalar_prod = scalar_product(freq_dict, ref_freq_dict);
-            
 
             double similarity = scalar_prod / (reading_euclid * reference_euclid);
-            cout << "Slicnost sa referentnom datotekom " << ref_name << ": " << similarity << endl;
+            //cout << "Slicnost sa referentnom datotekom " << ref_name << ": " << similarity << endl;
+            if (similarity > max_similarity) {
+                max_similarity = similarity;
+                most_similar_ref = ref_name;
+            }
         }
-        cout << endl;
+        readings_per_reference[most_similar_ref]++;
+        //cout << "Najvise slici referentnom genomu: " << most_similar_ref << " (slicnost: " << max_similarity << ")" << endl << endl;
+    }
+
+    for (const auto &entry : readings_per_reference)
+    {
+        cout << "Referentna datoteka: " << entry.first << ", broj ocitanih sekvenci: " << entry.second << endl;
     }
 
     return 0;
