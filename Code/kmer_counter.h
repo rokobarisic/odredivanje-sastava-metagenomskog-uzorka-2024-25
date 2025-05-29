@@ -12,7 +12,6 @@
 // Optimized constants
 #define MAX_KMER_LEN 31
 #define INITIAL_TABLE_CAPACITY 8192 // Increased from 1024
-#define MAX_LOAD_FACTOR 0.7         // Reduced from 0.75 for better performance
 
 // Pre-computed lookup table for base conversion (much faster than switch)
 // Compiler hack, set all 256 values to 4, but then immediately set some of them
