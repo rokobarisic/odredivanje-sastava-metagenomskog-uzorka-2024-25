@@ -1,3 +1,0 @@
-[submodule "external/bioparser"]
-	path = external/bioparser
-	url = https://github.com/rvaser/bioparser.git
