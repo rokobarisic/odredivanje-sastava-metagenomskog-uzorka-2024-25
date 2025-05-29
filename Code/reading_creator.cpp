@@ -1,14 +1,16 @@
 #include <iostream>
 #include <fstream>
 #include <string>
+#include <vector>
 #include <filesystem>
+#include <cstdlib>
+#include <ctime>
 
 using namespace std;
 namespace fs = std::filesystem;
 
 int main()
 {
-
     srand(time(0));
 
     string path = "../Data/Readings";
@@ -18,68 +20,50 @@ int main()
     {
         if (!fs::exists(path_reading))
         {
-            cout << "Datoteka ne postoji!" << endl;
-            ofstream izlaz(path_reading);
-            if (izlaz.is_open())
-            {
-                izlaz.close();
-            }
+            ofstream init(path_reading);
+            init.close();
         }
-    }
-    catch (const fs::filesystem_error &e)
-    {
-        cout << "Greška: " << e.what() << endl;
-    }
 
-    try
-    {
         ofstream izlaz(path_reading);
+        if (!izlaz.is_open())
+        {
+            cerr << "Ne mogu otvoriti izlaznu datoteku!" << endl;
+            return 1;
+        }
+
         for (const auto &entry : fs::directory_iterator(path))
         {
+            vector<string> linije;
             ifstream ocitanje(entry.path());
-            int br_linija = 0;
             for (string linija; getline(ocitanje, linija);)
             {
-                ++br_linija;
+                linije.push_back(linija);
             }
             ocitanje.close();
-            if (br_linija < 4)
-            {
+
+            if (linije.size() < 4)
                 continue;
-            }
-            int br_linija_kroz4 = br_linija / 4;
 
-            int nr_readings = 1 + rand() % 10;
+            int br_linija_kroz4 = linije.size() / 4;
+            int nr_readings = 10000 + rand() % 99000;
 
-            for (int i = 0; i < nr_readings; i++)
+            for (int i = 0; i < nr_readings; ++i)
             {
-                ocitanje.open(entry.path());
-                int random_number = rand() % (br_linija_kroz4 - 1);
-                int index = random_number * 4 + 2;
+                int random_number = rand() % br_linija_kroz4;
+                int index = random_number * 4 + 1;
 
-                string linija;
-                int trenutna = 1;
-                while (getline(ocitanje, linija))
-                {
-                    if (trenutna == index - 1)
-                    {
-                        break;
-                    }
-                    else
-                    {
-                        trenutna++;
-                    }
-                }
-                if (!linija.empty() && linija[0] == '@')
-                {
-                    linija[0] = '>';
-                }
-                izlaz << linija << endl;
-                getline(ocitanje, linija);
-                izlaz << linija << endl;
-                ocitanje.close();
+                string header = linije[index - 1];
+                string sequence = linije[index];
+
+                if (!header.empty() && header[0] == '@')
+                    header[0] = '>';
+
+                izlaz << header << endl;
+                izlaz << sequence << endl;
             }
         }
+
+        izlaz.close();
     }
     catch (const fs::filesystem_error &e)
     {

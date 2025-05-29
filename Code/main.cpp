@@ -32,7 +32,7 @@ public:
 uint16_t encode(const std::string &kmer)
 {
     if (kmer.size() != 5)
-        throw invalid_argument("Sekvenca mora biti duljine 5");
+        throw invalid_argument("Sekvenca mora biti duljine 5, a tu je duljine " + to_string(kmer.size()) + kmer);
 
     uint16_t code = 0;
     for (char c : kmer)
@@ -120,9 +120,11 @@ unordered_map<uint16_t, double> get_freq_dict(const string &sekv)
 {
     unordered_map<uint16_t, int> dict; // dict with kmer as key and its count in sequence as value
 
-    for (int i = 0; i <= sekv.size() - 5; ++i)
+    for (int i = 0; i <= sekv.size() - 5; i++)
     {
+        if (sekv.size() < i + 5) break;
         string kmer = sekv.substr(i, 5);
+        //if (kmer.size() < 5) continue;
         if (kmer.find('N') != string::npos) continue;
         if (kmer.find('R') != string::npos) continue;
         if (kmer.find('Y') != string::npos) continue;
@@ -232,6 +234,9 @@ int main()
                 most_similar_ref = ref_name;
             }
         }
+        if (most_similar_ref.empty()) {
+            continue;
+        }           
         readings_per_reference[most_similar_ref]++;
         //cout << "Najvise slici referentnom genomu: " << most_similar_ref << " (slicnost: " << max_similarity << ")" << endl << endl;
     }
