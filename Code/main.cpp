@@ -6,6 +6,8 @@
 #include "bioparser/fasta_parser.hpp"
 #include <math.h>
 
+#define KMER_LENGTH 10
+
 using namespace std;
 namespace fs = std::filesystem;
 
@@ -31,8 +33,8 @@ public:
 
 uint16_t encode(const std::string &kmer)
 {
-    if (kmer.size() != 5)
-        throw invalid_argument("Sekvenca mora biti duljine 5, a tu je duljine " + to_string(kmer.size()) + kmer);
+    if (kmer.size() != KMER_LENGTH)
+        throw invalid_argument("Sekvenca mora biti duljine KMER_LENGTH, a tu je duljine " + to_string(kmer.size()) + kmer);
 
     uint16_t code = 0;
     for (char c : kmer)
@@ -62,7 +64,7 @@ uint16_t encode(const std::string &kmer)
 
 string decode(uint16_t code)
 {
-    string kmer(5, 'A'); // rezerviramo niz od 5 znakova, svi su 'A'
+    string kmer(KMER_LENGTH, 'A'); // rezerviramo niz od KMER_LENGTH znakova, svi su 'A'
 
     for (int i = 4; i >= 0; --i)
     {
@@ -120,24 +122,38 @@ unordered_map<uint16_t, double> get_freq_dict(const string &sekv)
 {
     unordered_map<uint16_t, int> dict; // dict with kmer as key and its count in sequence as value
 
-    for (int i = 0; i <= sekv.size() - 5; i++)
+    for (int i = 0; i <= sekv.size() - KMER_LENGTH; i++)
     {
-        if (sekv.size() < i + 5) break;
-        string kmer = sekv.substr(i, 5);
-        //if (kmer.size() < 5) continue;
-        if (kmer.find('N') != string::npos) continue;
-        if (kmer.find('R') != string::npos) continue;
-        if (kmer.find('Y') != string::npos) continue;
-        if (kmer.find('K') != string::npos) continue;
-        if (kmer.find('M') != string::npos) continue;
-        if (kmer.find('S') != string::npos) continue;
-        if (kmer.find('W') != string::npos) continue;
-        if (kmer.find('B') != string::npos) continue;
-        if (kmer.find('D') != string::npos) continue;
-        if (kmer.find('H') != string::npos) continue;
-        if (kmer.find('V') != string::npos) continue;
-        if (kmer.find('X') != string::npos) continue;
-        if (kmer.find('-') != string::npos) continue;
+        if (sekv.size() < i + KMER_LENGTH)
+            break;
+        string kmer = sekv.substr(i, KMER_LENGTH);
+        // if (kmer.size() < KMER_LENGTH) continue;
+        if (kmer.find('N') != string::npos)
+            continue;
+        if (kmer.find('R') != string::npos)
+            continue;
+        if (kmer.find('Y') != string::npos)
+            continue;
+        if (kmer.find('K') != string::npos)
+            continue;
+        if (kmer.find('M') != string::npos)
+            continue;
+        if (kmer.find('S') != string::npos)
+            continue;
+        if (kmer.find('W') != string::npos)
+            continue;
+        if (kmer.find('B') != string::npos)
+            continue;
+        if (kmer.find('D') != string::npos)
+            continue;
+        if (kmer.find('H') != string::npos)
+            continue;
+        if (kmer.find('V') != string::npos)
+            continue;
+        if (kmer.find('X') != string::npos)
+            continue;
+        if (kmer.find('-') != string::npos)
+            continue;
         uint16_t encoded = encode(kmer);
         dict[encoded]++;
     }
@@ -174,17 +190,18 @@ int main()
             {
                 continue;
             }
-            readings_per_reference[entry.path().filename().string()] = 0;
+
             auto parser = bioparser::Parser<Sequence>::Create<bioparser::FastaParser>(entry.path().string());
-            //cout << "Parsiram referentnu datoteku: " << entry.path().filename() << endl;
+            // cout << "Parsiram referentnu datoteku: " << entry.path().filename() << endl;
             auto sekvence = parser->Parse(-1);
 
-            auto &s = sekvence[0];
-            string sekv = s->data;
-            //cout << "ID: " << s->id << endl;
-            //cout << "Vektor pojavljivanja kmera: " << endl;
-            unordered_map<uint16_t, double> freq_dict = get_freq_dict(sekv);
-            reference_freq_dicts[entry.path().filename().string()] = freq_dict;
+            for (const auto &s : sekvence)
+            {
+                readings_per_reference[s->id] = 0;
+                string sekv = s->data;
+                unordered_map<uint16_t, double> freq_dict = get_freq_dict(sekv);
+                reference_freq_dicts[s->id] = freq_dict;
+            }
         }
 
         // for (const auto &entry : reference_freq_dicts)
@@ -208,18 +225,19 @@ int main()
 
     for (const auto &s : sekvence)
     {
-        //cout << "ID: " << s->id << endl;
+        // cout << "ID: " << s->id << endl;
         string sekv = s->data;
 
         unordered_map<uint16_t, double> freq_dict = get_freq_dict(sekv);
 
         // cout << "Euklidska norma vektora: " << euclid(freq_dict) << endl;
-        //cout << endl;
+        // cout << endl;
 
         double max_similarity = 0.0;
         string most_similar_ref;
 
-        for (const auto &entry : reference_freq_dicts) {
+        for (const auto &entry : reference_freq_dicts)
+        {
             const string &ref_name = entry.first;
             const unordered_map<uint16_t, double> &ref_freq_dict = entry.second;
 
@@ -228,17 +246,19 @@ int main()
             double scalar_prod = scalar_product(freq_dict, ref_freq_dict);
 
             double similarity = scalar_prod / (reading_euclid * reference_euclid);
-            //cout << "Slicnost sa referentnom datotekom " << ref_name << ": " << similarity << endl;
-            if (similarity > max_similarity) {
+            // cout << "Slicnost sa referentnom datotekom " << ref_name << ": " << similarity << endl;
+            if (similarity > max_similarity)
+            {
                 max_similarity = similarity;
                 most_similar_ref = ref_name;
             }
         }
-        if (most_similar_ref.empty()) {
+        if (most_similar_ref.empty())
+        {
             continue;
-        }           
+        }
         readings_per_reference[most_similar_ref]++;
-        //cout << "Najvise slici referentnom genomu: " << most_similar_ref << " (slicnost: " << max_similarity << ")" << endl << endl;
+        // cout << "Najvise slici referentnom genomu: " << most_similar_ref << " (slicnost: " << max_similarity << ")" << endl << endl;
     }
 
     for (const auto &entry : readings_per_reference)
