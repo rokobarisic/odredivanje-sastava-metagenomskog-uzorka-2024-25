@@ -6,6 +6,9 @@
 #include <cstdlib>
 #include <ctime>
 
+#define MIN_READINGS_PER_FILE 1
+#define MAX_READINGS_PER_FILE 3
+
 using namespace std;
 namespace fs = std::filesystem;
 
@@ -45,7 +48,7 @@ int main()
                 continue;
 
             int br_linija_kroz4 = linije.size() / 4;
-            int nr_readings = 10000 + rand() % 99000;
+            int nr_readings = MIN_READINGS_PER_FILE + rand() % (MAX_READINGS_PER_FILE - MIN_READINGS_PER_FILE + 1);
 
             for (int i = 0; i < nr_readings; ++i)
             {

@@ -6,7 +6,7 @@
 #include "bioparser/fasta_parser.hpp"
 #include <math.h>
 
-#define KMER_LENGTH 10
+#define KMER_LENGTH 5
 
 using namespace std;
 namespace fs = std::filesystem;
@@ -34,7 +34,7 @@ public:
 uint16_t encode(const std::string &kmer)
 {
     if (kmer.size() != KMER_LENGTH)
-        throw invalid_argument("Sekvenca mora biti duljine KMER_LENGTH, a tu je duljine " + to_string(kmer.size()) + kmer);
+        throw invalid_argument("Sekvenca mora biti duljine " + to_string(KMER_LENGTH) + ", a tu je duljine " + to_string(kmer.size()) + kmer);
 
     uint16_t code = 0;
     for (char c : kmer)
@@ -66,7 +66,7 @@ string decode(uint16_t code)
 {
     string kmer(KMER_LENGTH, 'A'); // rezerviramo niz od KMER_LENGTH znakova, svi su 'A'
 
-    for (int i = 4; i >= 0; --i)
+    for (int i = KMER_LENGTH-1; i >= 0; --i)
     {
         uint16_t bits = code & 0b11; // uzmi zadnja 2 bita (najmanje značajne)
         switch (bits)
@@ -197,7 +197,7 @@ int main()
 
             for (const auto &s : sekvence)
             {
-                readings_per_reference[s->id] = 0;
+                //readings_per_reference[s->id] = 0;
                 string sekv = s->data;
                 unordered_map<uint16_t, double> freq_dict = get_freq_dict(sekv);
                 reference_freq_dicts[s->id] = freq_dict;
@@ -225,7 +225,6 @@ int main()
 
     for (const auto &s : sekvence)
     {
-        // cout << "ID: " << s->id << endl;
         string sekv = s->data;
 
         unordered_map<uint16_t, double> freq_dict = get_freq_dict(sekv);
@@ -246,7 +245,7 @@ int main()
             double scalar_prod = scalar_product(freq_dict, ref_freq_dict);
 
             double similarity = scalar_prod / (reading_euclid * reference_euclid);
-            // cout << "Slicnost sa referentnom datotekom " << ref_name << ": " << similarity << endl;
+            //cout << "Slicnost sa referentnom datotekom " << ref_name << ": " << similarity << endl;
             if (similarity > max_similarity)
             {
                 max_similarity = similarity;
@@ -258,6 +257,7 @@ int main()
             continue;
         }
         readings_per_reference[most_similar_ref]++;
+        // cout << "ID: " << s->id << endl;
         // cout << "Najvise slici referentnom genomu: " << most_similar_ref << " (slicnost: " << max_similarity << ")" << endl << endl;
     }
 
