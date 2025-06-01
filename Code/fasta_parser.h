@@ -27,38 +27,46 @@ inline FastaEntry *parse_fasta(const char *filename, int *count) {
   char line[MAX_SEQ];
   char *current_seq = NULL;
   char *current_id = NULL;
+  size_t seq_capacity = 0;
   size_t seq_len = 0;
 
   while (fgets(line, sizeof(line), file)) {
     if (line[0] == '>') {
+      // Store previous entry if it exists
       if (current_id) {
-        entries[index].id = strdup(current_id);
-        entries[index].sequence = strdup(current_seq);
+        entries[index].id = current_id;
+        entries[index].sequence = current_seq;
         index++;
         if (index >= capacity) {
           capacity *= 2;
-          entries =
-              (FastaEntry *)realloc(entries, capacity * sizeof(FastaEntry));
+          entries = (FastaEntry *)realloc(entries, capacity * sizeof(FastaEntry));
         }
-        free(current_seq);
+        current_id = NULL;
+        current_seq = NULL;
         seq_len = 0;
+        seq_capacity = 0;
       }
+
       line[strcspn(line, "\n")] = 0;
-      current_id = line + 1;
-      current_seq = (char *)calloc(1, sizeof(char));
+      current_id = strdup(line + 1);
     } else {
       line[strcspn(line, "\n")] = 0;
       size_t len = strlen(line);
-      current_seq = (char *)realloc(current_seq, seq_len + len + 1);
-      strcpy(current_seq + seq_len, line);
+      if (seq_len + len + 1 > seq_capacity) {
+        seq_capacity = (seq_len + len + 1) * 2;
+        current_seq = (char *)realloc(current_seq, seq_capacity);
+      }
+      memcpy(current_seq + seq_len, line, len);
       seq_len += len;
+      current_seq[seq_len] = '\0';
     }
   }
+
+  // Final entry
   if (current_id && current_seq) {
-    entries[index].id = strdup(current_id);
-    entries[index].sequence = strdup(current_seq);
+    entries[index].id = current_id;
+    entries[index].sequence = current_seq;
     index++;
-    free(current_seq);
   }
 
   fclose(file);
