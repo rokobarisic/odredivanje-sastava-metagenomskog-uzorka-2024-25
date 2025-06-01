@@ -132,22 +132,6 @@ int main(int argc, char **argv) {
     free_robin_hood_table(read_kmer_table);
   }
 
-  // --- OPTION 2: Batch processing (uncomment to use instead of Option 1) ---
-  // Implementation so far uses too much RAM and system kills the process.
-  // Proper dynamic handling of RAM usage is needed to make such algorithm work.
-  // printf("\nProcessing reads in batch mode...\n");
-  // BatchResult* batch_result = process_reads_batch(reference_kmer_table,
-  // read_entries, num_read_entries, kmer_length); if (batch_result) {
-  //     printf("Batch processing complete. Results:\n");
-  //     for (int i = 0; i < num_read_entries; i++) {
-  //         printf("Read %d: Cosine Similarity = %.4f\n", i + 1,
-  //         batch_result->similarities[i]);
-  //     }
-  //     free_batch_result(batch_result);
-  // } else {
-  //     fprintf(stderr, "Error: Batch processing failed.\n");
-  // }
-
   // --- MEMORY CLEANUP ---
   free_fasta(ref_entries, num_ref_entries);
   free_robin_hood_table(reference_kmer_table);
