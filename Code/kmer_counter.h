@@ -35,12 +35,6 @@ typedef struct {
   uint64_t mask;
 } RobinHoodTable;
 
-typedef struct {
-  RobinHoodTable **tables;
-  double *similarities;
-  size_t count;
-} BatchResult;
-
 static inline uint64_t base_to_bits_fast(char c) {
   return BASE_LOOKUP[(unsigned char)c];
 }

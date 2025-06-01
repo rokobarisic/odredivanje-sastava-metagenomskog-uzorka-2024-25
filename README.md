@@ -5,26 +5,27 @@
 **Course**: Bioinformatics 1 (https://www.fer.unizg.hr/en/course/enbio1)  
 **Academic year**: 2024/2025
 
-# Overview
-Brief description of what your metagenomic analysis tool does, its main 
-objectives, and the biological problems it addresses.
-
 ## Features
 
-- High-performance sequence analysis
-- Optimized hash table implementation using Robin Hood hashing
-- Memory-efficient data structures
-- Fast k-mer counting and analysis
+- 🚀 High-performance sequence analysis optimized for large-scale FASTA and FASTQ files
+- 🧠 Memory-efficient data structures for k-mer counting
+- ⚙️ Robin Hood Hashing for fast and balanced hash table operations
+- 🔍 Cosine similarity between k-mer vectors for comparative genomics
+- 🧬 Supports arbitrary k-mer lengths up to 31
+- 📦 Batch read processing for scalable genome comparison
+
 
 # Performance Optimizations
 
-## Robin Hood Hashing Implementation
-This project implements Robin Hood Hashing to significantly improve hash table performance during metagenomic sequence analysis. Key benefits include:
+We decided to use **Robin Hood Hashing** to optimize hash table behavior in 
+high-throughput genomic contexts.
 
-- Reduced clustering: Minimizes the variance in probe distances, leading to more predictable performance
-- Improved cache locality: Better memory access patterns reduce cache misses
-- Lower maximum probe distance: Guarantees better worst-case lookup times
-- Enhanced load factor tolerance: Maintains good performance even at higher load factors
+## Benefits
+
+- 📉 Reduced clustering → faster lookups
+- 🧠 Improved cache locality → lower memory latency
+- ⏱️ Lower worst-case probe time
+- 📈 High load factor tolerance → handles larger tables before resizing
 
 **Explanation**: Robin Hood hashing uses the principle of "*taking from the rich and giving to the poor*" - when inserting elements, those that have traveled further from their ideal position (are "richer" in probe distance) give way to elements that are closer to their ideal position. This redistribution leads to a more balanced probe distance distribution.
 
@@ -32,7 +33,7 @@ This project implements Robin Hood Hashing to significantly improve hash table p
 In our metagenomic analysis context, this optimization provides:
 
 - ~30-40% improvement in k-mer lookup times
-- More consistent performance across different input datasets
+- Better handling of high-throughput reads (e.g. >500,000 FASTQ reads)
 - Better scalability with large genomic datasets
 
 # Compiler Level Optimizations
@@ -44,10 +45,16 @@ gcc -O3 -march=native -funroll-loops -ffast-math -DNDEBUG -o metagenomics main.c
 Performance impact of compiler flags:
 
 - `-O3`: Provides aggressive optimizations including function inlining and vectorization
-- `-march=native`: Enables CPU-specific instructions (SSE, AVX) for vector operations
+- `-march=native`: Enables CPU supported instructions (SSE, AVX) for vector operations
 - `-funroll-loops`: Reduces loop overhead, particularly beneficial for sequence processing loops
+- `-ffast-math`: Enables faster (non-strict ones) floating-point math
+- `-DNDEBUG`: Disables assertions and debug checks
 
 Combined effect: 15-25% performance improvement over basic compilation
 
 ## TODO
-- Refactor structures to common.h
+- Refactor structures to `common.h`
+- Export results in standard formats (CSV/JSON)
+
+## License
+This project is open source under the MIT License.
