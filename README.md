@@ -13,6 +13,7 @@
 - 🔍 Cosine similarity between k-mer vectors for comparative genomics
 - 🧬 Supports arbitrary k-mer lengths up to 31
 - 📦 Batch read processing for scalable genome comparison
+- 📚 No external libraries required
 
 
 # Performance Optimizations
