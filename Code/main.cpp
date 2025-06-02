@@ -11,6 +11,9 @@
 using namespace std;
 namespace fs = std::filesystem;
 
+// g++ main.cpp -std=c++17 -I../external/bioparser/include -o main -lz
+
+// needed by Bioparser
 struct Sequence
 {
 public:
@@ -26,20 +29,24 @@ public:
 
     void Print() const
     {
-        cout << "ID: " << id << "\n";
-        cout << "Sekvenca: " << data << "\n\n";
+        cout << "ID: " << id << endl;
+        cout << "Sequence: " << data << endl << endl;
     }
 };
 
+
+// encode a kmer of length KMER_LENGTH into a 16-bit integer (works when KMER_LENGTH <= 8)
+// input: kmer - string representing the kmer
+// output: 16-bit integer representing the kmer
 uint16_t encode(const std::string &kmer)
 {
     if (kmer.size() != KMER_LENGTH)
-        throw invalid_argument("Sekvenca mora biti duljine " + to_string(KMER_LENGTH) + ", a tu je duljine " + to_string(kmer.size()) + kmer);
+        throw invalid_argument("The sequence must be of length " + to_string(KMER_LENGTH) + ", but here it is of length " + to_string(kmer.size()) + " " + kmer);
 
     uint16_t code = 0;
     for (char c : kmer)
     {
-        code <<= 2; // pomakni ulijevo za 2 bita
+        code <<= 2; // shift left by 2 bits to make space for the next nucleotide
 
         switch (c)
         {
@@ -56,19 +63,22 @@ uint16_t encode(const std::string &kmer)
             code |= 0b11;
             break;
         default:
-            throw invalid_argument("Nevažeći znak u sekvenci: " + string(1, c));
+            throw invalid_argument("Invalid character in sequence: " + string(1, c));
         }
     }
     return code;
 }
 
+// decode a 16-bit integer into a kmer of length KMER_LENGTH
+// input: code - 16-bit integer representing the kmer
+// output: string representing the kmer
 string decode(uint16_t code)
 {
-    string kmer(KMER_LENGTH, 'A'); // rezerviramo niz od KMER_LENGTH znakova, svi su 'A'
+    string kmer(KMER_LENGTH, 'A');
 
     for (int i = KMER_LENGTH-1; i >= 0; --i)
     {
-        uint16_t bits = code & 0b11; // uzmi zadnja 2 bita (najmanje značajne)
+        uint16_t bits = code & 0b11;
         switch (bits)
         {
         case 0b00:
@@ -84,11 +94,14 @@ string decode(uint16_t code)
             kmer[i] = 'T';
             break;
         }
-        code >>= 2; // pomakni udesno za 2 bita da dohvatiš sljedeće slovo
+        code >>= 2;
     }
     return kmer;
 }
 
+// calculate euclidean norm of a vector
+// input: dict - unordered_map with kmer as key and its relative count in sequence as value
+// output: euclidean norm of the vector
 double euclid(const unordered_map<uint16_t, double> &dict)
 {
     double sum = 0.0;
@@ -102,6 +115,9 @@ double euclid(const unordered_map<uint16_t, double> &dict)
     return sqrt(sum);
 }
 
+// calculate scalar product of two vectors
+// input: dict1 and dict2 - unordered_maps with kmer as key and its relative count in sequence as value
+// output: scalar product of the two vectors
 double scalar_product(const unordered_map<uint16_t, double> &dict1, const unordered_map<uint16_t, double> &dict2)
 {
     double sum = 0.0;
@@ -118,17 +134,19 @@ double scalar_product(const unordered_map<uint16_t, double> &dict1, const unorde
     return sum;
 }
 
-unordered_map<uint16_t, double> get_freq_dict(const string &sekv)
+// get frequency dictionary of a sequence
+// input: seq - string representing the sequence
+// output: unordered_map with kmer as key and its relative count in sequence as value (distribution vector)
+unordered_map<uint16_t, double> get_freq_dict(const string &seq)
 {
     unordered_map<uint16_t, int> dict; // dict with kmer as key and its count in sequence as value
 
-    for (int i = 0; i <= sekv.size() - KMER_LENGTH; i++)
+    for (int i = 0; i <= seq.size() - KMER_LENGTH; i++)
     {
-        if (sekv.size() < i + KMER_LENGTH)
+        if (seq.size() < i + KMER_LENGTH)
             break;
-        string kmer = sekv.substr(i, KMER_LENGTH);
-        // if (kmer.size() < KMER_LENGTH) continue;
-        if (kmer.find('N') != string::npos)
+        string kmer = seq.substr(i, KMER_LENGTH);
+        if (kmer.find('N') != string::npos) // skipping kmers with these characters because they are not nucleotides, but informative characters
             continue;
         if (kmer.find('R') != string::npos)
             continue;
@@ -179,9 +197,9 @@ int main()
     unordered_map<string, unordered_map<uint16_t, double>> reference_freq_dicts;
     unordered_map<string, int> readings_per_reference;
 
-    // parsiramo referentne datoteke
     string path = "../Data/References";
 
+    // parsing references
     try
     {
         for (const auto &entry : fs::directory_iterator(path))
@@ -192,45 +210,33 @@ int main()
             }
 
             auto parser = bioparser::Parser<Sequence>::Create<bioparser::FastaParser>(entry.path().string());
-            // cout << "Parsiram referentnu datoteku: " << entry.path().filename() << endl;
-            auto sekvence = parser->Parse(-1);
+            auto sequences = parser->Parse(-1); // -1 means parse all sequences
 
-            for (const auto &s : sekvence)
+            for (const auto &s : sequences)
             {
-                //readings_per_reference[s->id] = 0;
-                string sekv = s->data;
-                unordered_map<uint16_t, double> freq_dict = get_freq_dict(sekv);
+                string seq = s->data;
+                unordered_map<uint16_t, double> freq_dict = get_freq_dict(seq);
                 reference_freq_dicts[s->id] = freq_dict;
             }
         }
-
-        // for (const auto &entry : reference_freq_dicts)
-        // {
-        //     cout << "Referentna datoteka: " << entry.first << endl;
-        //     cout << "Euklidska norma vektora: " << euclid(entry.second) << endl;
-        // }
     }
     catch (const fs::filesystem_error &e)
     {
-        cout << "Greška: " << e.what() << endl;
+        cout << "Error: " << e.what() << endl;
     }
 
     string reading_path = "../Data/reading.fasta";
 
-    // Kreiraj parser koji čita FASTA i sprema u objekte tipa Sequence
+    // parsing readings
     auto parser = bioparser::Parser<Sequence>::Create<bioparser::FastaParser>(reading_path);
 
-    // Parsiraj sve sekvence iz datoteke
-    auto sekvence = parser->Parse(-1); // -1 znači: učitaj sve
+    auto sequences = parser->Parse(-1); 
 
-    for (const auto &s : sekvence)
+    for (const auto &s : sequences)
     {
-        string sekv = s->data;
+        string seq = s->data;
 
-        unordered_map<uint16_t, double> freq_dict = get_freq_dict(sekv);
-
-        // cout << "Euklidska norma vektora: " << euclid(freq_dict) << endl;
-        // cout << endl;
+        unordered_map<uint16_t, double> freq_dict = get_freq_dict(seq);
 
         double max_similarity = 0.0;
         string most_similar_ref;
@@ -245,7 +251,6 @@ int main()
             double scalar_prod = scalar_product(freq_dict, ref_freq_dict);
 
             double similarity = scalar_prod / (reading_euclid * reference_euclid);
-            //cout << "Slicnost sa referentnom datotekom " << ref_name << ": " << similarity << endl;
             if (similarity > max_similarity)
             {
                 max_similarity = similarity;
@@ -257,14 +262,16 @@ int main()
             continue;
         }
         readings_per_reference[most_similar_ref]++;
-        // cout << "ID: " << s->id << endl;
-        // cout << "Najvise slici referentnom genomu: " << most_similar_ref << " (slicnost: " << max_similarity << ")" << endl << endl;
     }
 
+    string output_path = "../Data/out.txt";
+    ofstream output_file(output_path);
     for (const auto &entry : readings_per_reference)
     {
-        cout << "Referentna datoteka: " << entry.first << ", broj ocitanih sekvenci: " << entry.second << endl;
+        output_file << "Reference file: " << entry.first << ", number of read sequences: " << entry.second << endl;
     }
+
+    output_file.close();
 
     return 0;
 }

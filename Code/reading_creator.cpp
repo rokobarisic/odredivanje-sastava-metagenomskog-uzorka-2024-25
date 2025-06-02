@@ -6,8 +6,8 @@
 #include <cstdlib>
 #include <ctime>
 
-#define MIN_READINGS_PER_FILE 1
-#define MAX_READINGS_PER_FILE 3
+#define MIN_READINGS_PER_FILE 10000
+#define MAX_READINGS_PER_FILE 100000
 
 using namespace std;
 namespace fs = std::filesystem;
@@ -27,50 +27,50 @@ int main()
             init.close();
         }
 
-        ofstream izlaz(path_reading);
-        if (!izlaz.is_open())
+        ofstream exit(path_reading);
+        if (!exit.is_open())
         {
-            cerr << "Ne mogu otvoriti izlaznu datoteku!" << endl;
+            cerr << "Cannot open exit file!" << endl;
             return 1;
         }
 
         for (const auto &entry : fs::directory_iterator(path))
         {
-            vector<string> linije;
-            ifstream ocitanje(entry.path());
-            for (string linija; getline(ocitanje, linija);)
+            vector<string> lines;
+            ifstream reading(entry.path());
+            for (string line; getline(reading, line);)
             {
-                linije.push_back(linija);
+                lines.push_back(line);
             }
-            ocitanje.close();
+            reading.close();
 
-            if (linije.size() < 4)
+            if (lines.size() < 4)
                 continue;
 
-            int br_linija_kroz4 = linije.size() / 4;
-            int nr_readings = MIN_READINGS_PER_FILE + rand() % (MAX_READINGS_PER_FILE - MIN_READINGS_PER_FILE + 1);
+            int no_lines_div4 = lines.size() / 4;
+            int nr_readings = MIN_READINGS_PER_FILE + rand() % (MAX_READINGS_PER_FILE - MIN_READINGS_PER_FILE + 1); // random no of readings TBA to reading.fasta for this file
 
             for (int i = 0; i < nr_readings; ++i)
             {
-                int random_number = rand() % br_linija_kroz4;
-                int index = random_number * 4 + 1;
+                int random_number = rand() % no_lines_div4; 
+                int index = random_number * 4 + 1; // random index of 4-line block TBA to reading.fasta
 
-                string header = linije[index - 1];
-                string sequence = linije[index];
+                string header = lines[index - 1];
+                string sequence = lines[index];
 
                 if (!header.empty() && header[0] == '@')
-                    header[0] = '>';
+                    header[0] = '>'; // fasta id starts with '>', not '@'
 
-                izlaz << header << endl;
-                izlaz << sequence << endl;
+                exit << header << endl;
+                exit << sequence << endl;
             }
         }
 
-        izlaz.close();
+        exit.close();
     }
     catch (const fs::filesystem_error &e)
     {
-        cout << "Greška: " << e.what() << endl;
+        cout << "Error: " << e.what() << endl;
     }
 
     return 0;
