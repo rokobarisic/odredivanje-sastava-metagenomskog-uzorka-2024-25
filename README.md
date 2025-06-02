@@ -17,3 +17,14 @@
 8. ./reading_creator
 9. g++ main.cpp -std=c++17 -I../external/bioparser/include -o main -lz
 10. ./main
+11. open Data/out.txt and see the results
+
+# How to use Minimap2?
+
+1. git clone https://github.com/lh3/minimap2
+2. cd minimap2 && make
+3. go to References folder
+4. cat *.fasta > references.fasta
+5. put the reading.fasta and references.fasta files in the same folder and position yourself in it
+6. minimap2 -ax map-pb -t 8 references.fasta reading.fasta > output.sam
+7. grep -v "^@" output.sam | awk '$3 != "*" && and($2, 4) == 0 {count[$3]++} END {for (r in count) print r ": " count[r]}'
