@@ -37,7 +37,7 @@ In our metagenomic analysis context, this optimization provides:
 - Better handling of high-throughput reads (e.g. >500,000 FASTQ reads)
 - Better scalability with large genomic datasets
 
-# Compiler Level Optimizations
+## Compiler Level Optimizations
 
 ``` bash
 gcc -O3 -march=native -funroll-loops -ffast-math -DNDEBUG -o metagenomics main.c
@@ -52,6 +52,33 @@ Performance impact of compiler flags:
 - `-DNDEBUG`: Disables assertions and debug checks
 
 Combined effect: 15-25% performance improvement over basic compilation
+
+# Example usage
+
+Precompiled binaries are available on our GitHub Releases page. Executable follows structure below:
+
+```bash
+./metagenomics -k <kmer_length> -ref <fasta_reference_file> -reads <fastq_reads_file> > out.txt
+```
+
+To avoid inconsistencies of terminal redirect stream to file. Output file example:
+
+```
+K-mer length: 5
+Reference file: /home/user/bioinf/acholeplasma/acholeplasma_laidlawii_reference.fasta
+Reads file: /home/user/bioinf/acholeplasma/NCTC10116.fastq
+Successfully parsed 1 FASTA reference entries.
+Counting k-mers for reference genome: NC_010163.1 Acholeplasma laidlawii PG-8A, complete genome
+Reference k-mer table created with 1024 unique k-mers.
+Successfully parsed 561896 FASTQ read entries.
+
+Calculating cosine similarities for each read:
+Read 1: Cosine Similarity = 0.6506 (k-mers: 548)
+Read 2: Cosine Similarity = 0.7624 (k-mers: 472)
+Read 3: Cosine Similarity = 0.7724 (k-mers: 525)
+Read 4: Cosine Similarity = 0.7710 (k-mers: 536)
+...
+```
 
 ## TODO
 - Refactor structures to `common.h`
