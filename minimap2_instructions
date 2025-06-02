@@ -1,6 +1,0 @@
-KAKO KORISTITI MINIMAP2?
-
-1. Potrebno je spojiti sve referentne genome u jednu datoteku: pozicioniramo se u References folder i koristimo "cat *.fasta > references.fasta".
-2. U isti folder stavimo datoteku reading.fasta i references.fasta i pozicioniramo se u njega.
-3. S naredbom "minimap2 -ax map-pb -t 8 references.fasta reading.fasta > izlaz.sam" generiramo datoteku izlaz.sam koja će sadržavati podatke koji nas zanimaju.
-4. Pokrenuti "grep -v "^@" izlaz.sam | awk '$3 != "*" && and($2, 4) == 0 {count[$3]++} END {for (r in count) print r ": " count[r]}'" kako bismo dobili podatke o broju očitanja po referentnom genomu. a
