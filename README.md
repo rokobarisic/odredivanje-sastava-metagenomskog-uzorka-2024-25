@@ -1,4 +1,4 @@
-# Određivanje sastava metagenomskog uzorka
+# Determination of the composition of a metagenomic sample
 
 **Authors:** Domagoj Marić, Roko Barišić  
 **Professor:** doc. dr. sc. Krešimir Križanović  
@@ -12,7 +12,6 @@
 - ⚙️ Robin Hood Hashing for fast and balanced hash table operations
 - 🔍 Cosine similarity between k-mer vectors for comparative genomics
 - 🧬 Supports arbitrary k-mer lengths up to 31
-- 📦 Batch read processing for scalable genome comparison
 - 📚 No external libraries required
 
 
@@ -40,7 +39,7 @@ In our metagenomic analysis context, this optimization provides:
 ## Compiler Level Optimizations
 
 ``` bash
-gcc -O3 -march=native -funroll-loops -ffast-math -DNDEBUG -o metagenomics main.c
+gcc -O3 -march=native -funroll-loops -ffast-math *.c -o metagenomics
 ```
 
 Performance impact of compiler flags:
@@ -49,39 +48,46 @@ Performance impact of compiler flags:
 - `-march=native`: Enables CPU supported instructions (SSE, AVX) for vector operations
 - `-funroll-loops`: Reduces loop overhead, particularly beneficial for sequence processing loops
 - `-ffast-math`: Enables faster (non-strict ones) floating-point math
-- `-DNDEBUG`: Disables assertions and debug checks
 
 Combined effect: 15-25% performance improvement over basic compilation
 
 # Example usage
 
-Precompiled binaries are available on our GitHub Releases page. Executable follows structure below:
+Precompiled binaries are available on our GitHub Releases page.
+The program accepts directories containing FASTA reference genomes and FASTQ read files:
 
 ```bash
-./metagenomics -k <kmer_length> -ref <fasta_reference_file> -reads <fastq_reads_file> > out.txt
+./metagenomics -k <kmer_length> -refdir <fasta_reference_dir> -readsdir <fastq_reads_dir>
 ```
 
-To avoid inconsistencies of terminal redirect stream to file. Output file example:
+In a benchmark using 2 reference genomes and 2 read files (~900,000 reads total),
+the program completed in under 4.5 minutes on a standard machine. Example output:
 
 ```
-K-mer length: 5
-Reference file: /home/user/bioinf/acholeplasma/acholeplasma_laidlawii_reference.fasta
-Reads file: /home/user/bioinf/acholeplasma/NCTC10116.fastq
-Successfully parsed 1 FASTA reference entries.
-Counting k-mers for reference genome: NC_010163.1 Acholeplasma laidlawii PG-8A, complete genome
-Reference k-mer table created with 1024 unique k-mers.
-Successfully parsed 561896 FASTQ read entries.
+K-mer length: 7
+Reference dir: ../Data/References/
+Reads dir: ../Data/Readings/
 
-Calculating cosine similarities for each read:
-Read 1: Cosine Similarity = 0.6506 (k-mers: 548)
-Read 2: Cosine Similarity = 0.7624 (k-mers: 472)
-Read 3: Cosine Similarity = 0.7724 (k-mers: 525)
-Read 4: Cosine Similarity = 0.7710 (k-mers: 536)
-...
+Reference k-mer table created with 16321 unique k-mers.
+Reference: acholeplasma_laidlawii_reference.fasta | Reads: NCTC12874.fastq | Max similarity: 0.521151 (read #171295)
+Reference: acholeplasma_laidlawii_reference.fasta | Reads: NCTC10116.fastq | Max similarity: 0.500521 (read #328849)
+Reference k-mer table created with 16135 unique k-mers.
+Reference: brachyspira_pilosicoli_reference.fasta | Reads: NCTC12874.fastq | Max similarity: 0.674698 (read #212403)
+Reference: brachyspira_pilosicoli_reference.fasta | Reads: NCTC10116.fastq | Max similarity: 0.641877 (read #222242)
+
+Program finished successfully.
 ```
+
+## Notes on K-mer Length and Similarity
+
+- Not all possible k-mers are observed in real genomes. For example, with `k = 7`, there are 16,384 possible
+combinations (4^7), but actual k-mer counts are often slightly lower due to natural sequence composition.
+- Shorter k-mers (e.g., `k = 5`) tend to result in higher cosine similarity scores due to higher chance overlap.
+- Longer k-mers are more specific but rare. They require near-perfect alignment, so similarities drop — this
+is expected and biologically meaningful.
 
 ## TODO
-- Refactor structures to `common.h`
+- Utilize multiprocessing for comparisons
 - Export results in standard formats (CSV/JSON)
 
 ## License
