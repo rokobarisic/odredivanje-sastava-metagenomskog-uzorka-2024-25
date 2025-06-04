@@ -164,7 +164,7 @@ void insert_robin_hood(RobinHoodTable *table, uint64_t kmer);
  * @return A pointer to a RobinHoodTable containing the k-mer counts, or NULL if
  * memory allocation fails.
  */
-RobinHoodTable *count_kmers_optimized(const char *sequence, int k);
+RobinHoodTable *cnt_kmer(const char *sequence, int k);
 
 /**
  * @brief Retrieves the count of a specific k-mer from the Robin Hood hash
@@ -190,7 +190,7 @@ uint32_t get_count_robin_hood(RobinHoodTable *table, uint64_t kmer);
  * @param table2 A pointer to the second RobinHoodTable.
  * @return The cosine similarity score (a double between 0.0 and 1.0).
  */
-double cosine_similarity_optimized(RobinHoodTable *table1,
+double cos_similarity(RobinHoodTable *table1,
                                    RobinHoodTable *table2);
 
 /**

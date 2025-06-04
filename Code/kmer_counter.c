@@ -84,7 +84,7 @@ void insert_robin_hood(RobinHoodTable *table, uint64_t kmer) {
   }
 }
 
-RobinHoodTable *count_kmers_optimized(const char *sequence, int k) {
+RobinHoodTable *cnt_kmer(const char *sequence, int k) {
   if (k <= 0 || k > MAX_KMER_LEN)
     return NULL;
 
@@ -137,7 +137,7 @@ uint32_t get_count_robin_hood(RobinHoodTable *table, uint64_t kmer) {
   }
 }
 
-double cosine_similarity_optimized(RobinHoodTable *table1,
+double cos_similarity(RobinHoodTable *table1,
                                    RobinHoodTable *table2) {
   if (!table1 || !table2 || table1->size == 0 || table2->size == 0)
     return 0.0;

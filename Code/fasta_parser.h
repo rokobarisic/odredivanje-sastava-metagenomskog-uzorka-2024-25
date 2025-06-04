@@ -32,7 +32,7 @@ typedef struct {
  *
  * Reads a FASTA formatted file, allocates memory for each sequence and its ID
  * and stores them in an array of FastaEntry structures. User is responsible
- * for freeing the allocated memory by calling the `free_fasta` function.
+ * for freeing the allocated memory by calling the `free_refs` function.
  *
  * @param filename The path to the FASTA file.
  * @param count A pointer to an integer where the number of parsed entries will
@@ -52,6 +52,6 @@ FastaEntry *parse_fasta(const char *filename, int *count);
  * @param entries A pointer to the array of FastaEntry structures to be freed.
  * @param count The number of entries in the 'entries' array.
  */
-void free_fasta(FastaEntry *entries, int count);
+void free_refs(FastaEntry *entries, int count);
 
 #endif // FASTA_PARSER_H

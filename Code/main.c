@@ -93,18 +93,17 @@ int main(int argc, char **argv) {
   RobinHoodTable *reference_kmer_table = NULL;
   if (num_ref_entries > 0) {
     printf("Counting k-mers for reference genome: %s\n", ref_entries[0].id);
-    reference_kmer_table =
-        count_kmers_optimized(ref_entries[0].sequence, kmer_length);
+    reference_kmer_table = cnt_kmer(ref_entries[0].sequence, kmer_length);
     if (reference_kmer_table == NULL) {
       fprintf(stderr, "Error: Failed to count k-mers for reference.\n");
-      free_fasta(ref_entries, num_ref_entries);
+      free_refs(ref_entries, num_ref_entries);
       return 1;
     }
     printf("Reference k-mer table created with %zu unique k-mers.\n",
            reference_kmer_table->size);
   } else {
     fprintf(stderr, "Error: No reference sequence found in FASTA file.\n");
-    free_fasta(ref_entries, num_ref_entries);
+    free_refs(ref_entries, num_ref_entries);
     return 1;
   }
 
@@ -113,7 +112,7 @@ int main(int argc, char **argv) {
   char **read_entries = parse_fastq(reads_filename, &num_read_entries);
   if (read_entries == NULL || num_read_entries == 0) {
     fprintf(stderr, "Error: Failed to parse reads FASTQ file or it's empty.\n");
-    free_fasta(ref_entries, num_ref_entries);
+    free_refs(ref_entries, num_ref_entries);
     free_robin_hood_table(reference_kmer_table);
     return 1;
   }
@@ -121,19 +120,25 @@ int main(int argc, char **argv) {
   printf("Successfully parsed %d FASTQ read entries.\n", num_read_entries);
   printf("\nCalculating cosine similarities for each read:\n");
 
+  double max_similarity = 0.0;
+  int max_idx = 0;
+
   for (int i = 0; i < num_read_entries; i++) {
-    RobinHoodTable *read_kmer_table =
-        count_kmers_optimized(read_entries[i], kmer_length);
-    double similarity =
-        cosine_similarity_optimized(reference_kmer_table, read_kmer_table);
-    printf("Read %d: Cosine Similarity = %.4f (k-mers: %zu)\n", i + 1,
-           similarity, read_kmer_table->size);
+    RobinHoodTable *read_kmer_table = cnt_kmer(read_entries[i], kmer_length);
+    double similarity = cos_similarity(reference_kmer_table, read_kmer_table);
+
+    if (similarity > max_similarity) {
+      max_similarity = similarity;
+      max_idx = i;
+    }
 
     free_robin_hood_table(read_kmer_table);
   }
 
+  printf("Highest cosine similarity: %lf, read: %d", max_similarity, max_idx);
+
   // --- MEMORY CLEANUP ---
-  free_fasta(ref_entries, num_ref_entries);
+  free_refs(ref_entries, num_ref_entries);
   free_robin_hood_table(reference_kmer_table);
   free_reads(read_entries, num_read_entries);
 

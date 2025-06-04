@@ -59,7 +59,7 @@ FastaEntry *parse_fasta(const char *filename, int *count) {
   return entries;
 }
 
-inline void free_fasta(FastaEntry *entries, int count) {
+inline void free_refs(FastaEntry *entries, int count) {
   for (int i = 0; i < count; i++) {
     free(entries[i].id);
     free(entries[i].sequence);
