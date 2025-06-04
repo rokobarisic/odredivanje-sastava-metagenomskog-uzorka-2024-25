@@ -117,10 +117,10 @@ int main(int argc, char **argv) {
     free_robin_hood_table(reference_kmer_table);
     return 1;
   }
-  printf("Successfully parsed %d FASTQ read entries.\n", num_read_entries);
 
-  // --- OPTION 1: Process reads individually ---
+  printf("Successfully parsed %d FASTQ read entries.\n", num_read_entries);
   printf("\nCalculating cosine similarities for each read:\n");
+
   for (int i = 0; i < num_read_entries; i++) {
     RobinHoodTable *read_kmer_table =
         count_kmers_optimized(read_entries[i], kmer_length);

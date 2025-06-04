@@ -5,81 +5,53 @@
 #include <stdlib.h>
 #include <string.h>
 
+/**
+ * @def MAX_SEQ
+ * @brief Maximum expected line length in a FASTA file.
+ *
+ * Defines the maximum buffer size for reading a single line
+ * from a FASTA file. Adjust this value as needed.
+ */
 #define MAX_SEQ 1024
 
+/**
+ * @struct FastaEntry
+ * @brief Stores a single FASTA sequence entry.
+ *
+ * Contains the ID (header) and the sequence for an individual
+ * entry in a FASTA file. All strings are dynamically allocated
+ * and must be freed by the user.
+ */
 typedef struct {
-  char *id;
-  char *sequence;
+  char *id;       /**< @brief Sequence ID(e.g., ">accession_id description"). */
+  char *sequence; /**< @brief The nucleotide or protein sequence. */
 } FastaEntry;
 
+/**
+ * @brief Parses FASTA file and loads entries into memory.
+ *
+ * Reads a FASTA formatted file, allocates memory for each sequence and its ID
+ * and stores them in an array of FastaEntry structures. User is responsible
+ * for freeing the allocated memory by calling the `free_fasta` function.
+ *
+ * @param filename The path to the FASTA file.
+ * @param count A pointer to an integer where the number of parsed entries will
+ * be stored.
+ * @return A pointer to a dynamically allocated array of FastaEntry structures,
+ * or NULL in case of an error (e.g., file cannot be opened).
+ */
 FastaEntry *parse_fasta(const char *filename, int *count);
+
+/**
+ * @brief Frees memory allocated for FASTA entries.
+ *
+ * Iterates through an array of FastaEntry structures and frees the memory
+ * allocated for the IDs and sequences within each structure,
+ * and finally frees the array of structures itself.
+ *
+ * @param entries A pointer to the array of FastaEntry structures to be freed.
+ * @param count The number of entries in the 'entries' array.
+ */
 void free_fasta(FastaEntry *entries, int count);
-
-inline FastaEntry *parse_fasta(const char *filename, int *count) {
-  FILE *file = fopen(filename, "r");
-  if (!file)
-    return NULL;
-
-  int capacity = 10;
-  int index = 0;
-  FastaEntry *entries = (FastaEntry *)malloc(capacity * sizeof(FastaEntry));
-
-  char line[MAX_SEQ];
-  char *current_seq = NULL;
-  char *current_id = NULL;
-  size_t seq_capacity = 0;
-  size_t seq_len = 0;
-
-  while (fgets(line, sizeof(line), file)) {
-    if (line[0] == '>') {
-      // Store previous entry if it exists
-      if (current_id) {
-        entries[index].id = current_id;
-        entries[index].sequence = current_seq;
-        index++;
-        if (index >= capacity) {
-          capacity *= 2;
-          entries = (FastaEntry *)realloc(entries, capacity * sizeof(FastaEntry));
-        }
-        current_id = NULL;
-        current_seq = NULL;
-        seq_len = 0;
-        seq_capacity = 0;
-      }
-
-      line[strcspn(line, "\n")] = 0;
-      current_id = strdup(line + 1);
-    } else {
-      line[strcspn(line, "\n")] = 0;
-      size_t len = strlen(line);
-      if (seq_len + len + 1 > seq_capacity) {
-        seq_capacity = (seq_len + len + 1) * 2;
-        current_seq = (char *)realloc(current_seq, seq_capacity);
-      }
-      memcpy(current_seq + seq_len, line, len);
-      seq_len += len;
-      current_seq[seq_len] = '\0';
-    }
-  }
-
-  // Final entry
-  if (current_id && current_seq) {
-    entries[index].id = current_id;
-    entries[index].sequence = current_seq;
-    index++;
-  }
-
-  fclose(file);
-  *count = index;
-  return entries;
-}
-
-inline void free_fasta(FastaEntry *entries, int count) {
-  for (int i = 0; i < count; i++) {
-    free(entries[i].id);
-    free(entries[i].sequence);
-  }
-  free(entries);
-}
 
 #endif // FASTA_PARSER_H

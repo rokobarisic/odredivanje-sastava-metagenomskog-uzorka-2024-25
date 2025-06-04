@@ -2,266 +2,206 @@
 #define KMER_COUNTER_H
 
 #include <ctype.h>
-#include <immintrin.h>
+#include <immintrin.h> // For AVX/SSE intrinsics
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+/**
+ * @def MAX_KMER_LEN
+ * @brief Maximum supported k-mer length.
+ *
+ * Defines the maximum 'k' value for k-mers that can be processed.
+ * Limited by the `uint64_t` representation (32 bases, 2 bits per base).
+ */
 #define MAX_KMER_LEN 31
+
+/**
+ * @def INITIAL_TABLE_CAPACITY
+ * @brief Initial capacity for the Robin Hood hash table.
+ *
+ * Initial number of slots allocated for the hash table.
+ * This value should ideally be a power of 2 for efficient modulo operations.
+ */
 #define INITIAL_TABLE_CAPACITY 8192
+
+/**
+ * @def EMPTY_KMER
+ * @brief Sentinel value to denote an empty slot in the Robin Hood hash table.
+ *
+ * This value is used to mark an unoccupied or deleted slot in the hash table,
+ * leveraging the maximum possible `uint64_t` value which is unlikely to be
+ * a valid k-mer representation.
+ */
 #define EMPTY_KMER UINT64_MAX
 
-// Pre-computed lookup table for base conversion (much faster than switch)
-// Compiler hack, set all 256 values to 4, but then immediately set some of them
-// to something else. It looks redundant but works like a charm.
-static const uint64_t BASE_LOOKUP[256] = {
-    [0 ... 255] = 4, // Invalid base marker
-    ['A'] = 0,       ['a'] = 0, ['C'] = 1, ['c'] = 1,
-    ['G'] = 2,       ['g'] = 2, ['T'] = 3, ['t'] = 3};
-
+/**
+ * @struct RobinHoodEntry
+ * @brief Represents a single entry within the Robin Hood hash table.
+ *
+ * Each entry stores a k-mer (encoded as a 64-bit integer), its occurrence
+ * count, and its 'distance' from its ideal hash position, which is crucial
+ * for the Robin Hood hashing strategy.
+ */
 typedef struct {
-  uint64_t kmer;
-  uint32_t count;
-  uint16_t distance;
+  uint64_t kmer;     /**< @brief The k-mer sequence encoded as a 64-bit unsigned
+                        integer. */
+  uint32_t count;    /**< @brief The frequency count of this k-mer. */
+  uint16_t distance; /**< @brief The "probe distance" or how far this entry is
+                        from its preferred slot. */
 } RobinHoodEntry;
 
+/**
+ * @struct RobinHoodTable
+ * @brief Represents the Robin Hood hash table structure.
+ *
+ * Encapsulates the state of the hash table, including its current
+ * number of elements, total capacity, the array of entries,
+ * the k-mer length it's configured for and a bitmask used for efficient
+ * k-mer hashing.
+ */
 typedef struct {
-  size_t size;
-  size_t capacity;
-  RobinHoodEntry *data;
-  uint32_t k;
-  uint64_t mask;
+  size_t
+      size; /**< @brief Current number of active k-mer entries in the table. */
+  size_t capacity; /**< @brief Total number of slots (entries) in the table. */
+  RobinHoodEntry *data; /**< @brief Pointer to the dynamically allocated array
+                           of RobinHoodEntry. */
+  uint32_t k; /**< @brief The k-mer length this table is designed to store. */
+  uint64_t
+      mask; /**< @brief A bitmask used for efficient k-mer encoding/decoding. */
 } RobinHoodTable;
 
-static inline uint64_t base_to_bits_fast(char c) {
-  return BASE_LOOKUP[(unsigned char)c];
-}
+/**
+ * @brief Converts a DNA base character to its 2-bit integer representation.
+ *
+ * This function takes a single character representing a DNA base (A, C, G, T/U)
+ * and converts it into its corresponding 2-bit integer value. It's
+ * case-insensitive.
+ *
+ * @param c The DNA base character ('A', 'C', 'G', 'T', 'U').
+ * @return The 2-bit integer representation (A=00, C=01, G=10, T/U=11).
+ */
+uint64_t base_to_bits_fast(char c);
 
-static inline uint64_t hash_kmer_fast(uint64_t kmer) {
-  kmer ^= kmer >> 32;
-  kmer *= 0x9e3779b97f4a7c15ULL;
-  kmer ^= kmer >> 25;
-  kmer *= 0x9e3779b97f4a7c15ULL;
-  kmer ^= kmer >> 16;
-  return kmer;
-}
+/**
+ * @brief Computes the hash value for a given k-mer (represented as a 64-bit
+ * integer).
+ *
+ * Calculates the initial hash index for a k-mer within the Robin Hood
+ * hash table. The specific hashing algorithm is optimized for speed.
+ *
+ * @param kmer The k-mer encoded as `uint64_t`.
+ * @return The initial hash index (slot) for the k-mer.
+ */
+uint64_t hash_kmer_fast(uint64_t kmer);
 
-static RobinHoodTable *create_robin_hood_table(int k) {
-  RobinHoodTable *table = (RobinHoodTable *)malloc(sizeof(RobinHoodTable));
-  if (!table)
-    return NULL;
+/**
+ * @brief Creates and initializes a new Robin Hood hash table.
+ *
+ * Allocates memory for a new hash table structure and its underlying data
+ * array. Initializes all slots as empty and sets up the table's properties
+ * based on the provided k-mer length.
+ *
+ * @param k The k-mer length for which this table will be used.
+ * @return A pointer to the newly created and initialized RobinHoodTable, or
+ * NULL on memory allocation failure.
+ */
+RobinHoodTable *create_robin_hood_table(int k);
 
-  table->size = 0;
-  table->capacity = INITIAL_TABLE_CAPACITY;
-  table->k = k;
-  table->mask = (1ULL << (2 * k)) - 1;
-  table->data = (RobinHoodEntry *)aligned_alloc(64, table->capacity *
-                                                        sizeof(RobinHoodEntry));
-  if (!table->data) {
-    free(table);
-    return NULL;
-  }
+/**
+ * @brief Reinserts k-mer and its count into the Robin Hood hash table during
+ * resizing.
+ *
+ * Internal helper function used specifically when the hash table is
+ * resized. Handles the placement of an existing k-mer and its count into the
+ * new, larger table following the Robin Hood hashing strategy.
+ *
+ * @param table Pointer to the RobinHoodTable where the k-mer will be
+ * reinserted.
+ * @param kmer The k-mer (encoded as `uint64_t`) to reinsert.
+ * @param count The frequency count of the k-mer to reinsert.
+ */
+void reinsert_robin_hood(RobinHoodTable *table, uint64_t kmer, uint32_t count);
 
-  for (size_t i = 0; i < table->capacity; ++i) {
-    table->data[i].kmer = EMPTY_KMER;
-  }
+/**
+ * @brief Resizes the Robin Hood hash table when it becomes too full.
+ *
+ * Doubles the capacity of the hash table and rehashes all existing entries
+ * into the new, larger table. This operation is critical for maintaining
+ * performance as the table grows.
+ *
+ * @param table A pointer to the RobinHoodTable to be resized.
+ */
+void resize_robin_hood_table(RobinHoodTable *table);
 
-  return table;
-}
+/**
+ * @brief Inserts a new k-mer into the Robin Hood hash table or increments its
+ * count if it exists.
+ *
+ * This function handles the core logic of inserting a k-mer. If the k-mer is
+ * new, it's added with a count of 1. If it already exists, its count is
+ * incremented. It applies the Robin Hood displacement strategy to handle
+ * collisions.
+ *
+ * @param table A pointer to the RobinHoodTable where the k-mer will be
+ * inserted.
+ * @param kmer The k-mer (encoded as `uint64_t`) to insert.
+ */
+void insert_robin_hood(RobinHoodTable *table, uint64_t kmer);
 
-static void reinsert_robin_hood(RobinHoodTable *table, uint64_t kmer,
-                                uint32_t count) {
-  uint64_t hash = hash_kmer_fast(kmer);
-  size_t pos = hash & (table->capacity - 1);
-  uint16_t distance = 0;
-  RobinHoodEntry entry = {kmer, count, distance};
+/**
+ * @brief Counts k-mers in a given DNA sequence using the optimized Robin Hood
+ * hash table.
+ *
+ * Iterates through the provided DNA sequence, extracts all k-mers of the
+ * specified length 'k', and counts their occurrences, storing them in a Robin
+ * Hood hash table.
+ *
+ * @param sequence The DNA sequence string to process.
+ * @param k The length of the k-mers to count.
+ * @return A pointer to a RobinHoodTable containing the k-mer counts, or NULL if
+ * memory allocation fails.
+ */
+RobinHoodTable *count_kmers_optimized(const char *sequence, int k);
 
-  while (1) {
-    RobinHoodEntry *slot = &table->data[pos];
+/**
+ * @brief Retrieves the count of a specific k-mer from the Robin Hood hash
+ * table.
+ *
+ * Looks up a given k-mer in the hash table and returns its associated count.
+ * If the k-mer is not found, it returns 0.
+ *
+ * @param table A pointer to the RobinHoodTable to search.
+ * @param kmer The k-mer (encoded as `uint64_t`) to look up.
+ * @return The count of the k-mer if found, otherwise 0.
+ */
+uint32_t get_count_robin_hood(RobinHoodTable *table, uint64_t kmer);
 
-    if (slot->kmer == EMPTY_KMER) {
-      *slot = entry;
-      table->size++;
-      return;
-    }
+/**
+ * @brief Calculates the cosine similarity between two k-mer count tables.
+ *
+ * Computes the cosine similarity metric between two Robin Hood hash tables,
+ * effectively comparing the k-mer frequency profiles of the two sequences
+ * from which the tables were generated.
+ *
+ * @param table1 A pointer to the first RobinHoodTable.
+ * @param table2 A pointer to the second RobinHoodTable.
+ * @return The cosine similarity score (a double between 0.0 and 1.0).
+ */
+double cosine_similarity_optimized(RobinHoodTable *table1,
+                                   RobinHoodTable *table2);
 
-    if (distance > slot->distance) {
-      RobinHoodEntry temp = *slot;
-      entry.distance = distance;
-      *slot = entry;
-      entry = temp;
-      distance = entry.distance;
-    }
-    pos = (pos + 1) & (table->capacity - 1);
-    distance++;
-  }
-}
-
-static void resize_robin_hood_table(RobinHoodTable *table) {
-  size_t old_capacity = table->capacity;
-  RobinHoodEntry *old_data = table->data;
-
-  table->capacity *= 2;
-  table->size = 0;
-  table->data = (RobinHoodEntry *)aligned_alloc(64, table->capacity *
-                                                        sizeof(RobinHoodEntry));
-  if (!table->data) {
-    table->capacity = old_capacity;
-    table->data = old_data;
-    return;
-  }
-
-  for (size_t i = 0; i < table->capacity; ++i)
-    table->data[i].kmer = EMPTY_KMER;
-
-  for (size_t i = 0; i < old_capacity; i++) {
-    if (old_data[i].kmer != EMPTY_KMER) {
-      reinsert_robin_hood(table, old_data[i].kmer, old_data[i].count);
-    }
-  }
-
-  free(old_data);
-}
-
-static void insert_robin_hood(RobinHoodTable *table, uint64_t kmer) {
-  if (table->size * 10 > table->capacity * 7) {
-    resize_robin_hood_table(table);
-  }
-
-  uint64_t hash = hash_kmer_fast(kmer);
-  size_t pos = hash & (table->capacity - 1);
-  uint16_t distance = 0;
-  RobinHoodEntry entry = {kmer, 1, 0};
-
-  while (1) {
-    RobinHoodEntry *slot = &table->data[pos];
-
-    if (slot->kmer == EMPTY_KMER) {
-      entry.distance = distance;
-      *slot = entry;
-      table->size++;
-      return;
-    }
-
-    if (slot->kmer == kmer) {
-      slot->count++;
-      return;
-    }
-
-    if (distance > slot->distance) {
-      RobinHoodEntry temp = *slot;
-      entry.distance = distance;
-      *slot = entry;
-      entry = temp;
-      distance = entry.distance;
-    }
-
-    pos = (pos + 1) & (table->capacity - 1);
-    distance++;
-  }
-}
-
-static RobinHoodTable *count_kmers_optimized(const char *sequence, int k) {
-  if (k <= 0 || k > MAX_KMER_LEN)
-    return NULL;
-
-  RobinHoodTable *table = create_robin_hood_table(k);
-  if (!table)
-    return NULL;
-
-  size_t len = strlen(sequence);
-  if (len < k)
-    return table;
-
-  uint64_t current_kmer = 0;
-  uint64_t mask = table->mask;
-  int valid_bases = 0;
-
-  for (size_t i = 0; i < len; i++) {
-    uint64_t base_bits = base_to_bits_fast(sequence[i]);
-
-    if (base_bits == 4) {
-      current_kmer = 0;
-      valid_bases = 0;
-      continue;
-    }
-
-    current_kmer = ((current_kmer << 2) | base_bits) & mask;
-    valid_bases++;
-
-    if (valid_bases >= k)
-      insert_robin_hood(table, current_kmer);
-  }
-
-  return table;
-}
-
-static uint32_t get_count_robin_hood(RobinHoodTable *table, uint64_t kmer) {
-  if (!table || table->size == 0)
-    return 0;
-
-  uint64_t hash = hash_kmer_fast(kmer);
-  size_t pos = hash & (table->capacity - 1);
-  uint16_t distance = 0;
-
-  while (1) {
-    RobinHoodEntry *slot = &table->data[pos];
-    if (slot->kmer == EMPTY_KMER || distance > slot->distance)
-      return 0;
-    if (slot->kmer == kmer)
-      return slot->count;
-
-    pos = (pos + 1) & (table->capacity - 1);
-    distance++;
-  }
-}
-
-static double cosine_similarity_optimized(RobinHoodTable *table1,
-                                          RobinHoodTable *table2) {
-  if (!table1 || !table2 || table1->size == 0 || table2->size == 0)
-    return 0.0;
-
-  RobinHoodTable *smaller = (table1->size <= table2->size) ? table1 : table2;
-  RobinHoodTable *larger = (table1->size <= table2->size) ? table2 : table1;
-
-  double dot_product = 0.0, norm1_sq = 0.0, norm2_sq = 0.0;
-
-  for (size_t i = 0; i < smaller->capacity; i++) {
-    if (smaller->data[i].kmer != EMPTY_KMER) {
-      uint32_t count1 = smaller->data[i].count;
-      uint32_t count2 = get_count_robin_hood(larger, smaller->data[i].kmer);
-
-      dot_product += (double)count1 * count2;
-    }
-  }
-
-  for (size_t i = 0; i < table1->capacity; i++) {
-    if (table1->data[i].kmer != EMPTY_KMER) {
-      double count = (double)table1->data[i].count;
-      norm1_sq += count * count;
-    }
-  }
-
-  for (size_t i = 0; i < table2->capacity; i++) {
-    if (table2->data[i].kmer != EMPTY_KMER) {
-      double count = (double)table2->data[i].count;
-      norm2_sq += count * count;
-    }
-  }
-
-  if (norm1_sq == 0.0 || norm2_sq == 0.0)
-    return 0.0;
-
-  return dot_product / (sqrt(norm1_sq) * sqrt(norm2_sq));
-}
-
-static void free_robin_hood_table(RobinHoodTable *table) {
-  if (!table)
-    return;
-  free(table->data);
-  free(table);
-}
+/**
+ * @brief Frees all memory allocated for a Robin Hood hash table.
+ *
+ * Releases the memory occupied by the hash table's data array and the table
+ * structure itself. This function should be called when the table is no longer
+ * needed to prevent memory leaks.
+ *
+ * @param table A pointer to the RobinHoodTable to be freed.
+ */
+void free_robin_hood_table(RobinHoodTable *table);
 
 #endif // KMER_COUNTER_H
