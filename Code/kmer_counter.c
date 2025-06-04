@@ -1,28 +1,32 @@
+#include <x86intrin.h> // For _mm_prefetch()
+
 #include "kmer_counter.h"
 
-// Pre-computed lookup table for base conversion (much faster than switch)
-// Compiler hack, set all 256 values to 4, but then immediately set some of them
-// to something else. It looks redundant but works like a charm.
+// Pre-computed lookup table for faster base conversion
 const uint64_t BASE_LOOKUP[256] = {
-    [0 ... 255] = 4, // Invalid base marker
-    ['A'] = 0,       ['a'] = 0, ['C'] = 1, ['c'] = 1,
+    [0 ... 255] = 4, ['A'] = 0, ['a'] = 0, ['C'] = 1, ['c'] = 1,
     ['G'] = 2,       ['g'] = 2, ['T'] = 3, ['t'] = 3};
 
-uint64_t base_to_bits_fast(char c) {
+inline uint64_t base_to_bits_fast(char c) {
   return BASE_LOOKUP[(unsigned char)c];
 }
 
-uint64_t hash_kmer_fast(uint64_t kmer) {
-  kmer ^= kmer >> 32;
-  kmer *= 0x9e3779b97f4a7c15ULL;
-  kmer ^= kmer >> 25;
-  kmer *= 0x9e3779b97f4a7c15ULL;
-  kmer ^= kmer >> 16;
-  return kmer;
+inline uint64_t hash_kmer_fast(uint64_t kmer) {
+  return (kmer * 0x9e3779b97f4a7c13ULL) >> 16;
+}
+
+inline double fast_inv_sqrt(double x) {
+  union {
+    double d;
+    uint64_t i;
+  } conv = {x};
+  conv.i = 0x5fe6ec85e7de30daULL - (conv.i >> 1);
+  double y = conv.d;
+  return y * (1.5 - 0.5 * x * y * y); // 1 Newton-Raphson iteration
 }
 
 RobinHoodTable *create_robin_hood_table(int k) {
-  RobinHoodTable *table = (RobinHoodTable *)malloc(sizeof(RobinHoodTable));
+  RobinHoodTable *table = aligned_alloc(64, sizeof(RobinHoodTable));
   if (!table)
     return NULL;
 
@@ -30,77 +34,21 @@ RobinHoodTable *create_robin_hood_table(int k) {
   table->capacity = INITIAL_TABLE_CAPACITY;
   table->k = k;
   table->mask = (1ULL << (2 * k)) - 1;
-  table->data = (RobinHoodEntry *)aligned_alloc(64, table->capacity *
-                                                        sizeof(RobinHoodEntry));
+  table->data = aligned_alloc(64, table->capacity * sizeof(RobinHoodEntry));
   if (!table->data) {
     free(table);
     return NULL;
   }
 
-  for (size_t i = 0; i < table->capacity; ++i) {
+  for (size_t i = 0; i < table->capacity; ++i)
     table->data[i].kmer = EMPTY_KMER;
-  }
 
   return table;
 }
 
-void reinsert_robin_hood(RobinHoodTable *table, uint64_t kmer, uint32_t count) {
-  uint64_t hash = hash_kmer_fast(kmer);
-  size_t pos = hash & (table->capacity - 1);
-  uint16_t distance = 0;
-  RobinHoodEntry entry = {kmer, count, distance};
-
-  while (1) {
-    RobinHoodEntry *slot = &table->data[pos];
-
-    if (slot->kmer == EMPTY_KMER) {
-      *slot = entry;
-      table->size++;
-      return;
-    }
-
-    if (distance > slot->distance) {
-      RobinHoodEntry temp = *slot;
-      entry.distance = distance;
-      *slot = entry;
-      entry = temp;
-      distance = entry.distance;
-    }
-    pos = (pos + 1) & (table->capacity - 1);
-    distance++;
-  }
-}
-
-void resize_robin_hood_table(RobinHoodTable *table) {
-  size_t old_capacity = table->capacity;
-  RobinHoodEntry *old_data = table->data;
-
-  table->capacity *= 2;
-  table->size = 0;
-  table->data = (RobinHoodEntry *)aligned_alloc(64, table->capacity *
-                                                        sizeof(RobinHoodEntry));
-  if (!table->data) {
-    table->capacity = old_capacity;
-    table->data = old_data;
-    return;
-  }
-
-  for (size_t i = 0; i < table->capacity; ++i)
-    table->data[i].kmer = EMPTY_KMER;
-
-  for (size_t i = 0; i < old_capacity; i++) {
-    if (old_data[i].kmer != EMPTY_KMER) {
-      reinsert_robin_hood(table, old_data[i].kmer, old_data[i].count);
-    }
-  }
-
-  free(old_data);
-}
-
 void insert_robin_hood(RobinHoodTable *table, uint64_t kmer) {
-  if (table->size * 10 > table->capacity * 7) {
+  if ((table->size << 1) > table->capacity)
     resize_robin_hood_table(table);
-  }
 
   uint64_t hash = hash_kmer_fast(kmer);
   size_t pos = hash & (table->capacity - 1);
@@ -108,6 +56,7 @@ void insert_robin_hood(RobinHoodTable *table, uint64_t kmer) {
   RobinHoodEntry entry = {kmer, 1, 0};
 
   while (1) {
+    _mm_prefetch(&table->data[(pos + 1) & (table->capacity - 1)], _MM_HINT_T0);
     RobinHoodEntry *slot = &table->data[pos];
 
     if (slot->kmer == EMPTY_KMER) {
@@ -123,10 +72,10 @@ void insert_robin_hood(RobinHoodTable *table, uint64_t kmer) {
     }
 
     if (distance > slot->distance) {
-      RobinHoodEntry temp = *slot;
+      RobinHoodEntry tmp = *slot;
       entry.distance = distance;
       *slot = entry;
-      entry = temp;
+      entry = tmp;
       distance = entry.distance;
     }
 
@@ -144,7 +93,7 @@ RobinHoodTable *count_kmers_optimized(const char *sequence, int k) {
     return NULL;
 
   size_t len = strlen(sequence);
-  if (len < k)
+  if (len < (size_t)k)
     return table;
 
   uint64_t current_kmer = 0;
@@ -152,28 +101,26 @@ RobinHoodTable *count_kmers_optimized(const char *sequence, int k) {
   int valid_bases = 0;
 
   for (size_t i = 0; i < len; i++) {
-    uint64_t base_bits = base_to_bits_fast(sequence[i]);
-
-    if (base_bits == 4) {
-      current_kmer = 0;
+    uint64_t base = base_to_bits_fast(sequence[i]);
+    if (base > 3) {
       valid_bases = 0;
+      current_kmer = 0;
       continue;
     }
 
-    current_kmer = ((current_kmer << 2) | base_bits) & mask;
+    current_kmer = ((current_kmer << 2) | base) & mask;
     valid_bases++;
 
     if (valid_bases >= k)
       insert_robin_hood(table, current_kmer);
+
+    _mm_prefetch(&sequence[i + 16], _MM_HINT_T0);
   }
 
   return table;
 }
 
 uint32_t get_count_robin_hood(RobinHoodTable *table, uint64_t kmer) {
-  if (!table || table->size == 0)
-    return 0;
-
   uint64_t hash = hash_kmer_fast(kmer);
   size_t pos = hash & (table->capacity - 1);
   uint16_t distance = 0;
@@ -195,43 +142,90 @@ double cosine_similarity_optimized(RobinHoodTable *table1,
   if (!table1 || !table2 || table1->size == 0 || table2->size == 0)
     return 0.0;
 
-  RobinHoodTable *smaller = (table1->size <= table2->size) ? table1 : table2;
-  RobinHoodTable *larger = (table1->size <= table2->size) ? table2 : table1;
-
-  double dot_product = 0.0, norm1_sq = 0.0, norm2_sq = 0.0;
-
-  for (size_t i = 0; i < smaller->capacity; i++) {
-    if (smaller->data[i].kmer != EMPTY_KMER) {
-      uint32_t count1 = smaller->data[i].count;
-      uint32_t count2 = get_count_robin_hood(larger, smaller->data[i].kmer);
-
-      dot_product += (double)count1 * count2;
-    }
-  }
+  double dot_product = 0.0;
+  double norm1_sq = 0.0;
+  double norm2_sq = 0.0;
 
   for (size_t i = 0; i < table1->capacity; i++) {
-    if (table1->data[i].kmer != EMPTY_KMER) {
-      double count = (double)table1->data[i].count;
-      norm1_sq += count * count;
+    RobinHoodEntry *e = &table1->data[i];
+    if (e->kmer != EMPTY_KMER) {
+      double count1 = (double)e->count;
+      norm1_sq += count1 * count1;
+      dot_product += count1 * get_count_robin_hood(table2, e->kmer);
     }
   }
 
   for (size_t i = 0; i < table2->capacity; i++) {
-    if (table2->data[i].kmer != EMPTY_KMER) {
-      double count = (double)table2->data[i].count;
-      norm2_sq += count * count;
+    RobinHoodEntry *e = &table2->data[i];
+    if (e->kmer != EMPTY_KMER) {
+      double count2 = (double)e->count;
+      norm2_sq += count2 * count2;
     }
   }
 
   if (norm1_sq == 0.0 || norm2_sq == 0.0)
     return 0.0;
 
-  return dot_product / (sqrt(norm1_sq) * sqrt(norm2_sq));
+  // Use fast inverse sqrt for approximate cosine similarity
+  double denom = fast_inv_sqrt(norm1_sq) * fast_inv_sqrt(norm2_sq);
+  return dot_product * denom;
+}
+
+void resize_robin_hood_table(RobinHoodTable *table) {
+  size_t old_capacity = table->capacity;
+  RobinHoodEntry *old_data = table->data;
+
+  table->capacity *= 2;
+  table->size = 0;
+  table->data = aligned_alloc(64, table->capacity * sizeof(RobinHoodEntry));
+  if (!table->data) {
+    table->capacity = old_capacity;
+    table->data = old_data;
+    return;
+  }
+
+  for (size_t i = 0; i < table->capacity; ++i)
+    table->data[i].kmer = EMPTY_KMER;
+
+  for (size_t i = 0; i < old_capacity; ++i) {
+    if (old_data[i].kmer != EMPTY_KMER) {
+      reinsert_robin_hood(table, old_data[i].kmer, old_data[i].count);
+    }
+  }
+
+  free(old_data);
+}
+
+void reinsert_robin_hood(RobinHoodTable *table, uint64_t kmer, uint32_t count) {
+  uint64_t hash = hash_kmer_fast(kmer);
+  size_t pos = hash & (table->capacity - 1);
+  uint16_t distance = 0;
+  RobinHoodEntry entry = {kmer, count, distance};
+
+  while (1) {
+    RobinHoodEntry *slot = &table->data[pos];
+    if (slot->kmer == EMPTY_KMER) {
+      *slot = entry;
+      table->size++;
+      return;
+    }
+
+    if (distance > slot->distance) {
+      RobinHoodEntry tmp = *slot;
+      entry.distance = distance;
+      *slot = entry;
+      entry = tmp;
+      distance = entry.distance;
+    }
+
+    pos = (pos + 1) & (table->capacity - 1);
+    distance++;
+  }
 }
 
 void free_robin_hood_table(RobinHoodTable *table) {
-  if (!table)
-    return;
-  free(table->data);
-  free(table);
+  if (table) {
+    free(table->data);
+    free(table);
+  }
 }
