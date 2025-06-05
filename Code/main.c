@@ -101,6 +101,7 @@ void process_files(const char *ref_dir, const char *reads_dir, int kmer_length,
     double *best_sim_val = calloc(num_reads, sizeof(double));
     int passing_reads = 0;
 
+#pragma omp parallel for reduction(+ : passing_reads) schedule(dynamic, 10)
     for (int i = 0; i < num_reads; i++) {
       best_ref_idx[i] = -1;
       best_sim_val[i] = 0.0;
@@ -109,6 +110,7 @@ void process_files(const char *ref_dir, const char *reads_dir, int kmer_length,
       if (!read_table)
         continue;
 
+      // Sequential inner loop (often performs better due to reduced overhead)
       for (int r = 0; r < num_refs; r++) {
         double sim = cos_similarity(references[r].table, read_table);
         if (sim > best_sim_val[i]) {
@@ -117,8 +119,10 @@ void process_files(const char *ref_dir, const char *reads_dir, int kmer_length,
         }
       }
 
-      if (best_sim_val[i] >= threshold)
+      if (best_sim_val[i] >= threshold) {
+#pragma omp atomic
         passing_reads++;
+      }
 
       free_robin_hood_table(read_table);
     }

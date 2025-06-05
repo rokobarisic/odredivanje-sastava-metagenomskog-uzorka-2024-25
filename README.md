@@ -39,7 +39,7 @@ In our metagenomic analysis context, this optimization provides:
 ## Compiler Level Optimizations
 
 ``` bash
-gcc -O3 -march=native -funroll-loops -ffast-math *.c -o metagenomics
+gcc -O3 -march=native -funroll-loops -ffast-math -fopenmp -lm *.c -o metagenomics
 ```
 
 Performance impact of compiler flags:
@@ -48,8 +48,11 @@ Performance impact of compiler flags:
 - `-march=native`: Enables CPU supported instructions (SSE, AVX) for vector operations
 - `-funroll-loops`: Reduces loop overhead, particularly beneficial for sequence processing loops
 - `-ffast-math`: Enables faster (non-strict ones) floating-point math
+- `-fopenmp`: Enable parallel cosine similarity computation
+- `-lm`: Link math library (e.g. for sqrt calculations)
 
-Combined effect: 15-25% performance improvement over basic compilation
+Combined effect: 15-25% performance improvement over basic compilation. Additional parallel
+calculation further reduces execution time.
 
 # Example usage
 
@@ -62,7 +65,8 @@ with *optional* threshold parameter defining similarity condition, e.g. threshol
 ```
 
 In a benchmark using 4 reference genomes and 4 read files (~6,2GB total size), the
-program completed in under 2 minutes on a machine with Intel Core i5 6500. Benchmark output:
+program completed within 40 seconds on a machine with Intel Core i5 6500 utilizing 
+multiprocessing. Benchmark output:
 
 ```
 K-mer length: 5
