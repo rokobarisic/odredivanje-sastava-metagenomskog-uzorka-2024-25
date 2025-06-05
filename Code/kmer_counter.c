@@ -137,8 +137,7 @@ uint32_t get_count_robin_hood(RobinHoodTable *table, uint64_t kmer) {
   }
 }
 
-double cos_similarity(RobinHoodTable *table1,
-                                   RobinHoodTable *table2) {
+double cos_similarity(RobinHoodTable *table1, RobinHoodTable *table2) {
   if (!table1 || !table2 || table1->size == 0 || table2->size == 0)
     return 0.0;
 

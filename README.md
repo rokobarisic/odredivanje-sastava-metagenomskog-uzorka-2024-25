@@ -54,28 +54,37 @@ Combined effect: 15-25% performance improvement over basic compilation
 # Example usage
 
 Precompiled binaries are available on our GitHub Releases page.
-The program accepts directories containing FASTA reference genomes and FASTQ read files:
+The program accepts directories containing FASTA reference genomes and FASTQ read files
+with *optional* threshold parameter defining similarity condition, e.g. threshold  > 0.5:
 
 ```bash
-./metagenomics -k <kmer_length> -refdir <fasta_reference_dir> -readsdir <fastq_reads_dir>
+./metagenomics -k <kmer_length> -refdir <fasta_reference_dir> -readsdir <fastq_reads_dir> [-t <threshold>]
 ```
 
-In a benchmark using 2 reference genomes and 2 read files (~900,000 reads total),
-the program completed in under 4.5 minutes on a standard machine. Example output:
+In a benchmark using 4 reference genomes and 4 read files (~6,2GB total size), the
+program completed in under 2 minutes on a machine with Intel Core i5 6500. Benchmark output:
 
 ```
-K-mer length: 7
+K-mer length: 5
 Reference dir: ../Data/References/
 Reads dir: ../Data/Readings/
+Threshold: 0.100
 
-Reference k-mer table created with 16321 unique k-mers.
-Reference: acholeplasma_laidlawii_reference.fasta | Reads: NCTC12874.fastq | Max similarity: 0.521151 (read #171295)
-Reference: acholeplasma_laidlawii_reference.fasta | Reads: NCTC10116.fastq | Max similarity: 0.500521 (read #328849)
-Reference k-mer table created with 16135 unique k-mers.
-Reference: brachyspira_pilosicoli_reference.fasta | Reads: NCTC12874.fastq | Max similarity: 0.674698 (read #212403)
-Reference: brachyspira_pilosicoli_reference.fasta | Reads: NCTC10116.fastq | Max similarity: 0.641877 (read #222242)
+=== Summary for Reads: NCTC12874.fastq ===
+Total reads: 344672
+Reads above threshold: 344154 (0.9985)
 
-Program finished successfully.
+=== Summary for Reads: NCTC10116.fastq ===
+Total reads: 561896
+Reads above threshold: 561546 (0.9994)
+
+=== Summary for Reads: NCTC11829.fastq ===
+Total reads: 118225
+Reads above threshold: 118165 (0.9995)
+
+=== Summary for Reads: NCTC12157.fastq ===
+Total reads: 209309
+Reads above threshold: 208860 (0.9979)
 ```
 
 ## Notes on K-mer Length and Similarity
